@@ -2,7 +2,7 @@
   "host": "127.0.0.1",
   "port": 3002,
   "roots": ["~"],
-  "exclude": ["~/Personals", "*.photoslibrary"],
+  "exclude": ["~/Media", "*.photoslibrary"],
   "oneFileSystem": true,
   "includeGlobal": true,
   "workers": 0,

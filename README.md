@@ -20,21 +20,61 @@ revisions) and prunes Docker or Podman storage.
 - **Dashboard and CLI.** The dashboard is at http://localhost:3002. Every
   feature also works from the terminal for servers and scripts.
 
-## Deploy (one command)
+## Install
+
+### Requirements
+
+- Linux (any distribution or architecture), macOS or FreeBSD. Windows is
+  supported too; see [Windows](#windows).
+- `git`, to clone the repository.
+- Go 1.21 or newer, to build from source. If a machine has no Go, see
+  [Machines without Go](#machines-without-go).
+
+Install Go from your package manager if it isn't there yet:
+
+| System | Command |
+|---|---|
+| Debian, Ubuntu, Mint | `sudo apt install golang-go` |
+| Fedora, RHEL | `sudo dnf install golang` |
+| Arch, Manjaro | `sudo pacman -S go` |
+| openSUSE | `sudo zypper install go` |
+| Alpine | `sudo apk add go` |
+| macOS | `brew install go` |
+
+Some LTS releases ship a Go older than 1.21. Check with `go version`; if it
+is too old, install the latest from https://go.dev/dl.
+
+### Clone and deploy
 
 ```sh
-cd ~/WorkSpace/disk-hog
+git clone https://github.com/kishore-144/disk-hog.git
+cd disk-hog
 ./deploy.sh
 ```
 
-Running it again later does all of the following:
-1. Runs `git pull --ff-only`, if a remote is configured.
-2. Rebuilds the binary.
+To clone over SSH instead, use
+`git clone git@github.com:kishore-144/disk-hog.git`.
+
+When it finishes, open **http://localhost:3002**. You don't need root:
+everything is installed for your user only.
+
+The script runs these steps in order:
+1. Runs `git pull --ff-only` to fetch the latest version.
+2. Builds the binary.
 3. Installs it to `~/.local/bin/disk-hog`.
-4. Restarts the service.
+4. Starts (or restarts) the background service.
 5. Checks that the service responds.
 
-You don't need root.
+### Update
+
+From the folder you cloned into, run the same command again:
+
+```sh
+cd disk-hog
+./deploy.sh
+```
+
+### Options
 
 | Option | What it does |
 |---|---|
@@ -47,6 +87,14 @@ You don't need root.
 
 `make deploy` does the same as `./deploy.sh`.
 
+If the script warns that `~/.local/bin` is not on your `PATH`, add this line
+to your shell profile (`~/.bashrc`, `~/.zshrc` or `~/.profile`) and open a
+new terminal:
+
+```sh
+export PATH="$HOME/.local/bin:$PATH"
+```
+
 **Service manager.** The script picks whatever the machine has:
 - a systemd **user** service on most distributions;
 - a launchd agent on macOS;
@@ -54,21 +102,39 @@ You don't need root.
   background process, plus a desktop autostart entry or an `@reboot` cron
   hint.
 
-**Machines without Go.** Run `make dist` once on a machine that has Go. It
-writes `dist/disk-hog-<os>-<arch>.tar.gz` for 16 platforms. Copy the right
-archive to the other machine and run:
+### Machines without Go
+
+Build release archives on any machine that has Go:
 
 ```sh
-tar xzf disk-hog-linux-arm64.tar.gz && cd disk-hog && ./deploy.sh
+git clone https://github.com/kishore-144/disk-hog.git
+cd disk-hog
+make dist
 ```
 
-**Windows (optional).**
+This writes `dist/disk-hog-<os>-<arch>.tar.gz` for 16 platforms. Copy the
+archive that matches the target machine (`uname -m` shows its
+architecture), then on that machine run:
+
+```sh
+tar xzf disk-hog-linux-amd64.tar.gz
+cd disk-hog
+./deploy.sh
+```
+
+### Windows
+
+Open PowerShell and run:
 
 ```powershell
+git clone https://github.com/kishore-144/disk-hog.git
+cd disk-hog
 powershell -ExecutionPolicy Bypass -File deploy.ps1
 ```
 
-This installs to `%LOCALAPPDATA%\disk-hog` and adds a logon task.
+This needs Go, or a `disk-hog.exe` from `make dist` placed next to
+`deploy.ps1`. It installs to `%LOCALAPPDATA%\disk-hog` and adds a task that
+starts it at logon. Add `-Uninstall` to remove it.
 
 ## Dashboard
 
@@ -145,8 +211,13 @@ Run `disk-hog rules` for the full list. In summary:
 
 ## Configuration
 
-The config file is optional. It lives at `~/.config/disk-hog/config.json`
-(`disk-hog config init` writes the defaults there). See
+The config file is optional. `disk-hog config path` prints where it lives
+on your system:
+- Linux and BSD: `~/.config/disk-hog/config.json`
+- macOS: `~/Library/Application Support/disk-hog/config.json`
+- Windows: `%APPDATA%\disk-hog\config.json`
+
+`disk-hog config init` writes the defaults there. See
 [`config.example.json`](config.example.json) for all keys:
 
 - `roots`, `exclude`
@@ -158,7 +229,7 @@ The config file is optional. It lives at `~/.config/disk-hog/config.json`
 - `disabledRules`
 - `rules`, for your own rules, in the same format as the built-in ones
 
-Restart after editing with `./deploy.sh restart`.
+Restart after editing: run `./deploy.sh restart` from the cloned folder.
 
 ## Security
 
@@ -184,6 +255,8 @@ Restart after editing with `./deploy.sh restart`.
 ## Develop
 
 ```sh
+git clone https://github.com/kishore-144/disk-hog.git
+cd disk-hog
 make build      # build/disk-hog
 make run        # serve with debug logs
 make test       # unit tests (make race for the race detector)

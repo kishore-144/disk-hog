@@ -70,7 +70,8 @@ func NewGuard(home string, roots, exact, extra []string) *Guard {
 		for _, d := range []string{"Desktop", "Documents", "Downloads", "Music", "Pictures", "Videos", "Movies",
 			"Public", "Templates", "Library", "AppData", ".ssh", ".gnupg", ".config", ".local", ".local/share",
 			".local/state", ".cache", "snap", ".var", ".var/app", "go", ".cargo", ".rustup", ".npm", ".m2", ".gradle",
-			".android", ".docker", ".kube", ".aws", ".password-store", "WorkSpace", "Projects", "projects", "src", "code", "dev"} {
+			".android", ".docker", ".kube", ".aws", ".password-store", "workspace", "Workspace", "WorkSpace",
+			"Projects", "projects", "repos", "Repos", "git", "src", "code", "dev"} {
 			prot = append(prot, filepath.Join(home, filepath.FromSlash(d)))
 		}
 	}
