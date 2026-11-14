@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>disk-hog</title>
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="style.css">
+<script src="app.js" defer></script>
+</head>
+<body>
+<header>
+  <div class="brand"><img src="icon.svg" alt=""> disk-hog <small id="host"></small></div>
+  <nav id="tabs">
+    <button data-tab="overview" class="on">Overview</button>
+    <button data-tab="cleanup">Cleanup</button>
+    <button data-tab="explore">Explore</button>
+    <button data-tab="dupes">Duplicates</button>
+    <button data-tab="system">System</button>
+    <button data-tab="history">History</button>
+    <button data-tab="settings">Settings</button>
+  </nav>
+  <span class="spacer"></span>
+  <span id="live" class="pill">connecting…</span>
+  <button id="theme" class="icon-btn" title="Toggle theme" aria-label="Toggle theme">◐</button>
+</header>
+
+<main>
+  <!-- Overview -->
+  <section id="tab-overview" class="stack">
+    <div class="grid cols-2">
+      <div class="card stack">
+        <div class="row"><h2>Scan</h2><span class="right small muted" id="last-scan"></span></div>
+        <label class="small muted" for="roots">Folders to scan (one per line)</label>
+        <textarea id="roots" rows="2" spellcheck="false"></textarea>
+        <div class="row small">
+          <label class="chk"><input type="checkbox" id="opt-global" checked> Global caches &amp; SDKs</label>
+          <label class="chk"><input type="checkbox" id="opt-xfs"> Cross filesystems</label>
+          <label class="chk">Min item <select id="opt-min"><option>64KB</option><option>256KB</option><option selected>1MB</option><option>10MB</option><option>100MB</option></select></label>
+          <label class="chk">Large file <select id="opt-large"><option>100MB</option><option>256MB</option><option selected>512MB</option><option>1GB</option><option>4GB</option><option value="0">off</option></select></label>
+        </div>
+        <div class="row">
+          <button class="btn primary" id="scan-btn">Scan</button>
+          <button class="btn" id="scan-cancel" hidden>Cancel</button>
+          <span class="progress-line" id="scan-progress"></span>
+        </div>
+      </div>
+      <div class="card stack">
+        <h2>Disks</h2>
+        <div id="disks" class="stack"></div>
+      </div>
+    </div>
+
+    <div class="card stack" id="summary-card" hidden>
+      <div class="row">
+        <div>
+          <div class="muted small">Reclaimable</div>
+          <div class="big" id="total"></div>
+        </div>
+        <div class="right row">
+          <button class="btn" id="sel-safe">Review safe items</button>
+          <button class="btn primary" id="goto-cleanup">Open cleanup</button>
+        </div>
+      </div>
+      <div class="bar tall" id="risk-bar"></div>
+      <div class="row small" id="risk-legend"></div>
+      <div class="grid cols-cards" id="cats"></div>
+      <div class="small muted" id="scan-meta"></div>
+    </div>
+    <div class="card empty" id="no-scan" hidden>No scan yet. Press <b>Scan</b> to see what is taking space.</div>
+  </section>
+
+  <!-- Cleanup -->
+  <section id="tab-cleanup" hidden>
+    <div class="card stack">
+      <div class="row">
+        <input type="search" id="f-q" placeholder="Filter by path or name…" class="grow">
+        <select id="f-age" title="Last touched">
+          <option value="0">Any age</option><option value="7">Untouched 7+ days</option><option value="30">30+ days</option>
+          <option value="90">90+ days</option><option value="180">6+ months</option><option value="365">1+ year</option>
+        </select>
+        <select id="f-min" title="Minimum size">
+          <option value="0">Any size</option><option value="10485760">≥ 10 MB</option><option value="104857600">≥ 100 MB</option><option value="1073741824">≥ 1 GB</option>
+        </select>
+        <select id="f-scope" title="Where">
+          <option value="">Projects &amp; global</option><option value="project">Projects only</option><option value="global">Global only</option>
+        </select>
+      </div>
+      <div class="chips" id="f-risk"></div>
+      <div class="chips" id="f-cat"></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th><input type="checkbox" id="sel-all" aria-label="Select all visible"></th>
+            <th class="num sortable" data-sort="size">Size</th>
+            <th class="sortable" data-sort="rule">What</th>
+            <th class="sortable" data-sort="path">Path</th>
+            <th class="num sortable hide-sm" data-sort="age">Touched</th>
+            <th></th>
+          </tr></thead>
+          <tbody id="items"></tbody>
+        </table>
+      </div>
+      <div id="items-more" class="row small muted"></div>
+      <div class="selbar" id="selbar">
+        <span id="sel-info" class="muted">Nothing selected</span>
+        <span class="spacer"></span>
+        <button class="btn" id="act-clear">Clear</button>
+        <button class="btn" id="act-trash" disabled title="Move to the system trash (restorable; frees space once emptied)">Move to Trash</button>
+        <button class="btn danger" id="act-delete" disabled>Delete permanently</button>
+        <button class="btn primary" id="act-auto" disabled title="Safe items are deleted, everything else goes to the trash">Clean</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Explore -->
+  <section id="tab-explore" hidden>
+    <div class="card stack">
+      <div class="row"><div class="crumbs" id="crumbs"></div><span class="right small muted" id="ex-info"></span></div>
+      <div class="table-wrap"><table><thead><tr><th>Name</th><th style="width:40%">Share</th><th class="num">Size</th><th class="num hide-sm">Files</th><th></th></tr></thead><tbody id="ex-rows"></tbody></table></div>
+    </div>
+  </section>
+
+  <!-- Duplicates -->
+  <section id="tab-dupes" hidden>
+    <div class="card stack">
+      <div class="row">
+        <input type="text" id="d-roots" placeholder="Folders (comma separated; default: scan roots)" class="grow">
+        <label class="chk small">Min size <select id="d-min"><option>100KB</option><option selected>1MB</option><option>10MB</option><option>100MB</option></select></label>
+        <label class="chk small"><input type="checkbox" id="d-all"> Include node_modules, .git, venvs</label>
+        <button class="btn primary" id="d-run">Find duplicates</button>
+        <button class="btn" id="d-cancel" hidden>Cancel</button>
+      </div>
+      <div class="progress-line" id="d-progress"></div>
+      <div class="row" id="d-tools" hidden>
+        <span id="d-summary"></span>
+        <span class="spacer"></span>
+        <button class="btn sm" id="d-keep-old">Keep oldest in each group</button>
+        <button class="btn sm" id="d-keep-new">Keep newest</button>
+        <button class="btn sm" id="d-clear">Clear</button>
+        <button class="btn sm" id="d-trash" disabled>Trash selected</button>
+        <button class="btn sm danger" id="d-delete" disabled>Delete selected</button>
+      </div>
+      <div id="d-groups"></div>
+    </div>
+  </section>
+
+  <!-- System -->
+  <section id="tab-system" hidden class="stack">
+    <div class="card">
+      <div class="row"><h2>System cleanups</h2><span class="small muted">Need root or the owning tool. Copy and run the command.</span><button class="btn sm right" id="sys-refresh">Refresh</button></div>
+      <div id="sys-items"><div class="empty"><span class="spin"></span></div></div>
+    </div>
+    <div class="card">
+      <div class="row"><h2>Containers</h2><button class="btn sm right" id="dk-refresh">Refresh</button></div>
+      <div id="dk"></div>
+    </div>
+  </section>
+
+  <!-- History -->
+  <section id="tab-history" hidden>
+    <div class="card stack">
+      <div class="row"><h2>Cleanup history</h2><span class="right" id="h-freed"></span></div>
+      <div class="table-wrap"><table><thead><tr><th>When</th><th>Action</th><th class="num">Size</th><th>Path</th><th>Result</th></tr></thead><tbody id="h-rows"></tbody></table></div>
+    </div>
+  </section>
+
+  <!-- Settings -->
+  <section id="tab-settings" hidden class="stack">
+    <div class="grid cols-2">
+      <div class="card stack">
+        <h2>Configuration</h2>
+        <div class="small">Edit <code id="cfg-path"></code> or run <code>disk-hog config set KEY VALUE</code>, then restart the service.</div>
+        <pre class="cmd" id="cfg"></pre>
+      </div>
+      <div class="card stack">
+        <h2>Ignored paths</h2>
+        <div class="small muted">Never reported again. You can also drop an empty <code id="keep-marker"></code> file into any folder to protect it.</div>
+        <div class="row"><input type="text" id="ig-path" placeholder="/absolute/path" class="grow"><button class="btn" id="ig-add">Ignore</button></div>
+        <div id="ig-list"></div>
+      </div>
+    </div>
+    <div class="card stack">
+      <div class="row"><h2>Rules</h2><input type="search" id="r-q" placeholder="Filter rules…" class="right"></div>
+      <div class="table-wrap"><table><thead><tr><th>ID</th><th>Name</th><th>Category</th><th>Risk</th><th>Kind</th><th class="hide-sm">Regenerate with</th></tr></thead><tbody id="r-rows"></tbody></table></div>
+    </div>
+  </section>
+</main>
+
+<dialog id="confirm">
+  <div class="dh"><h2 id="c-title"></h2><div id="c-sub" class="small muted"></div></div>
+  <div class="db" id="c-body"></div>
+  <div class="df"><button class="btn" value="cancel" id="c-cancel">Cancel</button><button class="btn primary" id="c-ok">Confirm</button></div>
+</dialog>
+<div id="toast" aria-live="polite"></div>
+</body>
+</html>

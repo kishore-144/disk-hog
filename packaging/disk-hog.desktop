@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=disk-hog
+Comment=Reclaim disk space wasted by dev tooling (background service)
+Exec=@BIN@ serve
+Terminal=false
+NoDisplay=true
+X-GNOME-Autostart-enabled=true

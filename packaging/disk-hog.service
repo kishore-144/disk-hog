@@ -1,0 +1,34 @@
+# disk-hog user service. Installed by deploy.sh into
+# ~/.config/systemd/user/ with @BIN@ replaced by the binary path.
+#
+# It runs as you (not root) because it scans and cleans your own files.
+# Manage it with:  systemctl --user {status,restart,stop} disk-hog
+# Logs:            journalctl --user -u disk-hog -f
+
+[Unit]
+Description=disk-hog — reclaim disk space wasted by dev tooling
+After=default.target
+
+[Service]
+Type=simple
+ExecStart=@BIN@ serve
+Restart=on-failure
+RestartSec=3
+
+# A polite background citizen: scans never compete with your editor or
+# build for CPU or disk.
+Nice=10
+IOSchedulingClass=idle
+
+# Hard ceilings; a scan of a large home peaks well under 100 MB.
+MemoryHigh=256M
+MemoryMax=512M
+TasksMax=64
+
+NoNewPrivileges=yes
+LockPersonality=yes
+RestrictRealtime=yes
+UMask=0077
+
+[Install]
+WantedBy=default.target
