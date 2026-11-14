@@ -1,7 +1,7 @@
 # disk-hog — one-command deploy for Windows (optional platform).
 #
 #   powershell -ExecutionPolicy Bypass -File deploy.ps1            build/install/start
-#   powershell -ExecutionPolicy Bypass -File deploy.ps1 -Port 4000
+#   powershell -ExecutionPolicy Bypass -File deploy.ps1 -Port 8080   (default 6969)
 #   powershell -ExecutionPolicy Bypass -File deploy.ps1 -Uninstall
 #
 # Installs to %LOCALAPPDATA%\disk-hog and registers a per-user scheduled task

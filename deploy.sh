@@ -2,7 +2,7 @@
 # disk-hog — one-command pull, build and deploy.
 #
 #   ./deploy.sh                 pull (if a git remote exists), build, install, (re)start
-#   ./deploy.sh --port 4000     ...and serve on another port
+#   ./deploy.sh --port 8080     ...and serve on another port (default 6969)
 #   ./deploy.sh --system        install the binary to /usr/local/bin (uses sudo)
 #   ./deploy.sh --linger        keep the service running when you are logged out (systemd)
 #   ./deploy.sh --no-pull | --no-build | --no-service
@@ -36,11 +36,18 @@ while [ $# -gt 0 ]; do
 	--purge) PURGE=1 ;;
 	--port) shift; PORT=${1:-}; [ -n "$PORT" ] || die "--port needs a value" ;;
 	--port=*) PORT=${1#--port=} ;;
+	[0-9]*) PORT=$1 ;;
 	-h|--help) sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
 	*) die "unknown option: $1 (see --help)" ;;
 	esac
 	shift
 done
+
+# Validate before touching anything, so a typo changes nothing.
+if [ -n "$PORT" ]; then
+	case "$PORT" in *[!0-9]*) die "invalid port: $PORT (must be a number from 1 to 65535)" ;; esac
+	[ "$PORT" -ge 1 ] && [ "$PORT" -le 65535 ] || die "invalid port: $PORT (must be a number from 1 to 65535)"
+fi
 
 # ---- platform -------------------------------------------------------------------
 case "$(uname -s)" in

@@ -17,7 +17,7 @@ revisions) and prunes Docker or Podman storage.
   regenerate it. Items go to the system trash by default unless they
   rebuild automatically. Each path is checked again just before removal.
   The browser can only refer to scan results by ID, never by path.
-- **Dashboard and CLI.** The dashboard is at http://localhost:3002. Every
+- **Dashboard and CLI.** The dashboard is at http://localhost:6969. Every
   feature also works from the terminal for servers and scripts.
 
 ## Install
@@ -55,7 +55,7 @@ cd disk-hog
 To clone over SSH instead, use
 `git clone git@github.com:kishore-144/disk-hog.git`.
 
-When it finishes, open **http://localhost:3002**. You don't need root:
+When it finishes, open **http://localhost:6969**. You don't need root:
 everything is installed for your user only.
 
 The script runs these steps in order:
@@ -78,7 +78,7 @@ cd disk-hog
 
 | Option | What it does |
 |---|---|
-| `--port 4000` | Serve on another port (default 3002). |
+| `--port 8080` | Serve on another port (default 6969). |
 | `--system` | Install the binary to `/usr/local/bin` (uses sudo or doas). |
 | `--linger` | Keep running after logout (systemd `enable-linger`). |
 | `--no-pull`, `--no-build`, `--no-service` | Skip that step. |
@@ -86,6 +86,23 @@ cd disk-hog
 | `uninstall [--purge]` | Remove the service and binary. `--purge` also removes config and history. |
 
 `make deploy` does the same as `./deploy.sh`.
+
+### Port
+
+disk-hog serves on port **6969** unless you give it another one. You can
+set the port in any of these ways; the first one found wins:
+
+| Where | Example |
+|---|---|
+| Command line | `disk-hog serve --port 8080` or `disk-hog serve 8080` |
+| Environment variable | `DISK_HOG_PORT=8080 disk-hog serve` |
+| Config file | `disk-hog config set port 8080` |
+| Default | 6969 |
+
+To change the port of the installed service, run `./deploy.sh --port 8080`
+from the cloned folder. It saves the port to the config file and restarts
+the service. The port must be a number from 1 to 65535. `DISK_HOG_HOST`
+works the same way for the bind address.
 
 If the script warns that `~/.local/bin` is not on your `PATH`, add this line
 to your shell profile (`~/.bashrc`, `~/.zshrc` or `~/.profile`) and open a

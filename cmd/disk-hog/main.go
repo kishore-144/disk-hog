@@ -2,7 +2,8 @@
 // tooling: dependency folders, build output, package-manager caches, old
 // SDKs, VM images, logs, duplicates and large files.
 //
-// Run without arguments it serves a dashboard on http://localhost:3002.
+// Run without arguments it serves a dashboard on http://localhost:6969
+// (change it with `disk-hog serve --port N` or DISK_HOG_PORT).
 // Every feature is also available from the command line for servers and
 // scripts; see `disk-hog help`.
 package main
@@ -46,7 +47,7 @@ var version = "dev"
 const usage = `disk-hog — find and reclaim disk space wasted by dev tooling
 
 Usage:
-  disk-hog [serve]              run the dashboard (default http://localhost:3002)
+  disk-hog [serve] [--port N]   run the dashboard (default port 6969)
   disk-hog scan [paths...]      scan and print what can be reclaimed
   disk-hog clean [paths...]     scan, then delete matches (dry run unless --yes)
   disk-hog dupes [paths...]     find duplicate files
@@ -144,10 +145,23 @@ func cmdServe(args []string) error {
 	fs := flag.NewFlagSet("serve", flag.ExitOnError)
 	cfgPath := fs.String("config", "", "configuration file")
 	host := fs.String("host", "", "bind address (default 127.0.0.1)")
-	port := fs.Int("port", 0, "listen port (default 3002)")
+	port := fs.Int("port", 0, "listen port (default 6969, or DISK_HOG_PORT, or \"port\" in the config file)")
 	readOnly := fs.Bool("read-only", false, "disable all deleting")
 	logLevel := fs.String("log-level", "info", "debug, info, warn or error")
 	fs.Parse(args)
+	// A bare number is accepted too: `disk-hog serve 8080`.
+	if fs.NArg() == 1 && *port == 0 {
+		p, err := config.ParsePort(fs.Arg(0))
+		if err != nil {
+			return err
+		}
+		*port = p
+	} else if fs.NArg() > 0 {
+		return fmt.Errorf("unexpected arguments: %s", strings.Join(fs.Args(), " "))
+	}
+	if *port != 0 && (*port < 1 || *port > 65535) {
+		return fmt.Errorf("invalid port %d: must be from 1 to 65535", *port)
+	}
 
 	cfg, used, err := loadConfig(*cfgPath)
 	if err != nil {
@@ -793,12 +807,16 @@ func cmdToken() error {
 func cmdHealth(args []string) error {
 	fs := flag.NewFlagSet("health", flag.ExitOnError)
 	url := fs.String("url", "", "server URL (default from config)")
+	port := fs.Int("port", 0, "check this port instead of the configured one")
 	wait := fs.Duration("wait", 0, "keep retrying for this long")
 	fs.Parse(args)
 	if *url == "" {
 		cfg, _, err := loadConfig("")
 		if err != nil {
 			return err
+		}
+		if *port != 0 {
+			cfg.Port = *port
 		}
 		host := cfg.Host
 		if host == "0.0.0.0" || host == "::" || host == "" {

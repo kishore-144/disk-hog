@@ -1,7 +1,8 @@
 // Package config loads disk-hog's optional JSON configuration file.
 //
 // Every field has a sensible default, so the file is never required.
-// Precedence is: command-line flags, then the file, then defaults.
+// Precedence is: command-line flags, then environment variables
+// (DISK_HOG_PORT, DISK_HOG_HOST), then the file, then defaults.
 package config
 
 import (
@@ -47,11 +48,39 @@ type Config struct {
 	Rules         []rules.Rule `json:"rules"`
 }
 
+// DefaultPort is used when no port is given on the command line, in the
+// environment or in the config file.
+const DefaultPort = 6969
+
+// ParsePort validates a port number given as text.
+func ParsePort(s string) (int, error) {
+	p, err := strconv.Atoi(strings.TrimSpace(s))
+	if err != nil || p < 1 || p > 65535 {
+		return 0, fmt.Errorf("invalid port %q: must be a number from 1 to 65535", s)
+	}
+	return p, nil
+}
+
+// applyEnv lets DISK_HOG_PORT and DISK_HOG_HOST override the file.
+func (c *Config) applyEnv() error {
+	if v := os.Getenv("DISK_HOG_PORT"); v != "" {
+		p, err := ParsePort(v)
+		if err != nil {
+			return fmt.Errorf("DISK_HOG_PORT: %w", err)
+		}
+		c.Port = p
+	}
+	if v := os.Getenv("DISK_HOG_HOST"); v != "" {
+		c.Host = v
+	}
+	return nil
+}
+
 // Defaults returns the built-in configuration.
 func Defaults() Config {
 	return Config{
 		Host:          "127.0.0.1",
-		Port:          3002,
+		Port:          DefaultPort,
 		Roots:         []string{"~"},
 		Exclude:       []string{},
 		OneFileSystem: true,
@@ -87,6 +116,9 @@ func Load(path string) (cfg Config, used string, found bool, err error) {
 	}
 	b, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
+		if err := cfg.applyEnv(); err != nil {
+			return cfg, path, false, err
+		}
 		return cfg, path, false, cfg.validate()
 	}
 	if err != nil {
@@ -96,6 +128,9 @@ func Load(path string) (cfg Config, used string, found bool, err error) {
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&cfg); err != nil {
 		return cfg, path, true, fmt.Errorf("%s: %w", path, err)
+	}
+	if err := cfg.applyEnv(); err != nil {
+		return cfg, path, true, err
 	}
 	return cfg, path, true, cfg.validate()
 }
