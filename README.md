@@ -58,6 +58,13 @@ To clone over SSH instead, use
 When it finishes, open **http://localhost:6969**. You don't need root:
 everything is installed for your user only.
 
+The deploy runs disk-hog as a background service that starts when you log
+in, so you don't need to run `disk-hog serve` yourself. If you do while the
+service is running, it tells you the dashboard is already up at that
+address. To run it in a terminal instead (for example to watch the logs),
+stop the service first with `./deploy.sh stop`, or use another port with
+`disk-hog serve --port 7000`.
+
 The script runs these steps in order:
 1. Runs `git pull --ff-only` to fetch the latest version.
 2. Builds the binary.

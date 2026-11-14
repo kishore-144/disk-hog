@@ -29,6 +29,7 @@ import (
 	"runtime/debug"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"disk-hog/internal/advisor"
@@ -73,6 +74,7 @@ type Server struct {
 
 	events *hub
 	assets *assetHandler
+	ln     net.Listener
 }
 
 // New prepares a server.
@@ -121,12 +123,80 @@ func (s *Server) URL() string {
 }
 
 // Run serves until ctx is cancelled.
-func (s *Server) Run(ctx context.Context) error {
-	s.ctx = ctx
+// Listen claims the port. It is separate from Run so the caller only
+// announces "started" once the port is really ours, and can explain
+// clearly when it is not.
+func (s *Server) Listen() error {
 	ln, err := net.Listen("tcp", s.Addr())
 	if err != nil {
-		return fmt.Errorf("listen on %s: %w (is disk-hog already running? change the port with --port)", s.Addr(), err)
+		return s.explainListen(err)
 	}
+	s.ln = ln
+	return nil
+}
+
+// explainListen turns a bind failure into advice. When the port is taken,
+// it asks whoever holds it whether it is disk-hog, so the message says
+// what is actually going on instead of guessing.
+func (s *Server) explainListen(err error) error {
+	if !errors.Is(err, syscall.EADDRINUSE) && !strings.Contains(err.Error(), "address already in use") &&
+		!strings.Contains(err.Error(), "Only one usage") {
+		return fmt.Errorf("cannot listen on %s: %w", s.Addr(), err)
+	}
+	port := s.cfg.Port
+	client := &http.Client{Timeout: 2 * time.Second}
+	host := s.cfg.Host
+	if host == "" || host == "0.0.0.0" || host == "::" {
+		host = "127.0.0.1"
+	}
+	resp, herr := client.Get("http://" + net.JoinHostPort(host, fmt.Sprint(port)) + "/api/health")
+	if herr == nil {
+		var v struct {
+			OK      bool   `json:"ok"`
+			Version string `json:"version"`
+		}
+		_ = json.NewDecoder(io.LimitReader(resp.Body, 4096)).Decode(&v)
+		resp.Body.Close()
+		if v.OK {
+			return &AlreadyRunning{URL: s.URL(), Version: v.Version, Port: port}
+		}
+	}
+	return fmt.Errorf("port %d is already used by another program.\n"+
+		"  Use a different port:  disk-hog serve --port %d\n"+
+		"  See what holds it:     ss -ltnp 'sport = :%d'   (macOS: lsof -iTCP:%d -sTCP:LISTEN)",
+		port, suggestPort(port), port, port)
+}
+
+func suggestPort(p int) int {
+	if p < 65535 {
+		return p + 1
+	}
+	return p - 1
+}
+
+// AlreadyRunning reports that another disk-hog already serves the port.
+type AlreadyRunning struct {
+	URL, Version string
+	Port         int
+}
+
+func (e *AlreadyRunning) Error() string {
+	return fmt.Sprintf("disk-hog %s is already running at %s, open that in your browser.\n"+
+		"  It is usually the background service. To run one in this terminal instead, stop it first:\n"+
+		"    systemctl --user stop disk-hog      (or ./deploy.sh stop in the cloned folder)\n"+
+		"  Or run a second copy on another port:  disk-hog serve --port %d",
+		e.Version, e.URL, suggestPort(e.Port))
+}
+
+// Run serves until ctx is cancelled. It calls Listen if the caller has not.
+func (s *Server) Run(ctx context.Context) error {
+	s.ctx = ctx
+	if s.ln == nil {
+		if err := s.Listen(); err != nil {
+			return err
+		}
+	}
+	ln := s.ln
 	srv := &http.Server{
 		Handler:           s.routes(),
 		ReadHeaderTimeout: 10 * time.Second,

@@ -192,6 +192,17 @@ func cmdServe(args []string) error {
 	if err != nil {
 		return err
 	}
+	if err := srv.Listen(); err != nil {
+		var running *server.AlreadyRunning
+		if errors.As(err, &running) {
+			// Print plain advice rather than an error. Still exit non-zero:
+			// this process is not serving, and a non-zero status lets the
+			// systemd service retry and take over once the other copy quits.
+			fmt.Fprintln(os.Stderr, running.Error())
+			os.Exit(1)
+		}
+		return err
+	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	log.Info("disk-hog started", "version", version, "url", srv.URL(), "config", used,
